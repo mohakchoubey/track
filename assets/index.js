@@ -1421,6 +1421,31 @@ function chatVisibleTasks(date) {
     return state.tasks.filter((t) => t.month === month);
 }
 
+// How many of the last `days` days (ending at endDateKey) were ticked for this activity.
+function countTaskChecksInRange(taskId, endDateKey, days) {
+    let total = 0;
+    const [y, m, d] = String(endDateKey).split("-").map(Number);
+    const cursor = new Date(y, (m || 1) - 1, d || 1);
+    for (let i = 0; i < days; i += 1) {
+        if (getTaskLogData(todayKey(cursor), taskId).completed) total += 1;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+    return total;
+}
+
+function focusMinutesForDate(dateKey) {
+    return Object.values(state.logs?.[dateKey] || {}).reduce((sum, entry) => {
+        const mins = entry && typeof entry === "object" ? Number(entry.durationMinutes || 0) : 0;
+        return sum + (Number.isFinite(mins) ? mins : 0);
+    }, 0);
+}
+
+function focusMinutesForMonth(month) {
+    return Object.keys(state.logs || {})
+        .filter((dateKey) => dateKey.startsWith(month))
+        .reduce((sum, dateKey) => sum + focusMinutesForDate(dateKey), 0);
+}
+
 function buildChatContext() {
     const date = viewingDate();
     const month = monthKeyFromDateKey(date);
@@ -1430,16 +1455,35 @@ function buildChatContext() {
     chatRefMap = {};
     const lines = tasks.map((t, i) => {
         chatRefMap[i + 1] = t.id;
-        const done = getTaskLogData(date, t.id).completed;
-        return `${i + 1}. ${t.name} (category: ${t.category}, target: ${t.target} days, ${done ? "done" : "NOT DONE"} on ${date})`;
+        const log = getTaskLogData(date, t.id);
+        const streak = getTaskStreak(t.id);
+        const monthChecks = countTaskChecksInMonth(t.id, month);
+        const last7 = countTaskChecksInRange(t.id, date, 7);
+        return `${i + 1}. ${t.name} (category: ${t.category}, target: ${t.target} days, ` +
+            `${log.completed ? "done" : "NOT DONE"} on ${date}, ` +
+            `streak ${streak} day${streak === 1 ? "" : "s"} 🔥, ` +
+            `${monthChecks}/${t.target} days this month, ${last7}/7 in the last 7 days` +
+            (log.durationMinutes ? `, ${log.durationMinutes} min logged on ${date}` : "") + ")";
     });
-    const remaining = tasks.filter((t) => !getTaskLogData(date, t.id).completed).length;
 
-    return `Today is ${todayKey()}. The user is viewing ${date}.\n` +
-        `Only the activities for the month being viewed (${month}) are listed. ` +
-        `${tasks.length} in total, ${remaining} not done on ${date}.\n` +
-        (lines.length ? "Activities (use the number as task_ref):\n" + lines.join("\n") : "There are no activities for this month.") +
-        "\nIf the user asks to mark, change or delete several or all activities, make one tool call for each matching activity. The app shows them as one confirmation.";
+    const remaining = tasks.filter((t) => !getTaskLogData(date, t.id).completed).length;
+    const doneCount = tasks.length - remaining;
+    const donePercent = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+    const totalTarget = tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0);
+    const monthChecksAll = tasks.reduce((sum, t) => sum + countTaskChecksInMonth(t.id, month), 0);
+    const last7All = tasks.reduce((sum, t) => sum + countTaskChecksInRange(t.id, date, 7), 0);
+    const bestStreak = tasks.reduce((best, t) => Math.max(best, getTaskStreak(t.id)), 0);
+
+    return [
+        `Today is ${todayKey()}. The user is viewing ${date}.`,
+        `Only the activities for the month being viewed (${month}) are listed. ${tasks.length} in total, ${remaining} not done on ${date}.`,
+        (lines.length ? "Activities (use the number as task_ref):\n" + lines.join("\n") : "There are no activities for this month."),
+        `Day summary for ${date}: ${doneCount}/${tasks.length} done (${donePercent}%). Longest current streak: ${bestStreak} days.`,
+        `Last 7 days: ${last7All} checks out of ${tasks.length * 7} possible. This month: ${monthChecksAll} checks against a combined target of ${totalTarget} days.`,
+        `Deep work logged: ${focusMinutesForDate(date)} minutes on ${date}, ${focusMinutesForMonth(month)} minutes this month.`,
+        "Streaks are shown on each activity card as a number with one flame, e.g. 6 🔥, meaning 6 days in a row. A streak counts back from today; if today is not ticked yet it counts up to yesterday.",
+        "If the user asks to mark, change or delete several or all activities, make one tool call for each matching activity. The app shows them as one confirmation."
+    ].join("\n");
 }
 
 function buildRequestMessages() {
