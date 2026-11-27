@@ -592,6 +592,38 @@ function countTaskChecksInMonth(taskId, month) {
     return total;
 }
 
+/* ---------- Daily streak (per activity) ---------- */
+const STREAK_FIRE = "\u{1F525}";   // 🔥
+
+// Consecutive days this activity was ticked, counting back from today.
+// If today is not ticked yet the run is counted up to yesterday, so a
+// streak does not look broken early in the day.
+function getTaskStreak(taskId) {
+    let streak = 0;
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+
+    if (!getTaskLogData(todayKey(cursor), taskId).completed) {
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    while (getTaskLogData(todayKey(cursor), taskId).completed) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
+}
+
+// "6 🔥" — the day count followed by one small flame, dimmed while today is unticked.
+function streakBadgeHTML(streak, todayDone) {
+    if (!streak || streak < 1) return "";
+    const label = (streak === 1 ? "1-day streak" : `${streak}-day streak`)
+        + (todayDone ? "" : " \u2014 not done yet today");
+    const pending = todayDone ? "" : " streak-badge-pending";
+    return `<span class="streak-badge${pending}" title="${label}" aria-label="${label}"><b>${streak}</b>${STREAK_FIRE}</span>`;
+}
+
 function countCompletedTasksForDate(dateKey) {
     const dateLogs = state.logs?.[dateKey] || {};
     return Object.values(dateLogs).filter(isEntryCompleted).length;
@@ -695,7 +727,23 @@ tasksForMonth = tasksForMonth.filter(task => {
     list.innerHTML = "";
 
     if (tasksForMonth.length === 0) {
-        list.innerHTML = `
+        // Every activity of the month is ticked for this day: say so instead of
+        // "nothing found". Checked without the category filter so the message is
+        // only shown when the whole day is actually complete.
+        const monthTasks = state.tasks.filter(task => task.month === month);
+        const allDone = activeTaskView === "incomplete"
+            && monthTasks.length > 0
+            && monthTasks.every(task => getTaskLogData(date, task.id).completed);
+
+        list.innerHTML = allDone
+            ? `
+            <div class="card empty-all-done" style="grid-column: 1 / -1;">
+                <div class="empty-all-done-icon" aria-hidden="true">🎉</div>
+                <div class="empty-all-done-title">You completed all the activities</div>
+                <div class="empty-all-done-sub">Nothing left for this day — see them in the Done tab.</div>
+            </div>
+        `
+            : `
             <div class="card"
                  style="grid-column: 1 / -1; text-align: center; color: var(--text-dim);">
                 No activities found.
@@ -737,6 +785,7 @@ const reminderHTML = (
             : 0;
 
         const cat = task.category || "General";
+        const streakHTML = streakBadgeHTML(getTaskStreak(task.id), isChecked);
 
         const item = document.createElement("div");
 
@@ -773,6 +822,7 @@ const reminderHTML = (
                     ${reminderHTML}
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <span>${escapeHtml(task.name)}</span>
+                        ${streakHTML}
                         <span class="cat-badge cat-${catClass(cat)}">
                             ${escapeHtml(cat)}
                         </span>

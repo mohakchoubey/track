@@ -1412,3 +1412,53 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 .legal-body { max-height: 60vh; overflow-y: auto; font-size: .88rem; line-height: 1.6; color: var(--text-2); }
 .legal-body h3 { color: var(--text); font-size: 1rem; margin: 14px 0 6px; }
 .legal-body p { margin-bottom: 8px; }
+
+/* ---------- Daily streak badge (per activity) ---------- */
+.streak-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.14);
+  border: 1px solid rgba(249, 115, 22, 0.32);
+  vertical-align: middle;
+  white-space: nowrap;
+  cursor: default;
+}
+.streak-badge b {
+  font-weight: 800;
+  color: #f97316;
+  font-variant-numeric: tabular-nums;
+}
+.streak-badge-pending {
+  opacity: 0.6;
+  border-style: dashed;
+}
+.item.done .streak-badge {
+  background: rgba(249, 115, 22, 0.2);
+  border-color: rgba(249, 115, 22, 0.45);
+}
+
+/* ---------- All activities completed ---------- */
+.empty-all-done {
+  text-align: center;
+  padding: 22px 16px;
+}
+.empty-all-done-icon {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+.empty-all-done-title {
+  margin-top: 8px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--success);
+}
+.empty-all-done-sub {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
